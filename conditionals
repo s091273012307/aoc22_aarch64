@@ -1,0 +1,23 @@
+meaning                         cmp     A, B            sign            flags
+------------------------------- ------- --------------- --------------- -------------------
+equal                           eq      A == B          -               Z == 1
+not equal                       ne      A != B          -               Z == 0
+
+carry set                       cs,hs   A >= B          unsigned        C == 1
+carry clear                     cc,lo   A < B           unsigned        C == 0
+higher                          hi      A > B           unsigned        C == 1 && Z == 0
+lower or same                   ls      A <= B          unsigned        !(C == 1 && Z == 0)
+
+greater than or equal           ge      A >= B          signed          N == V
+less than                       lt      A < B           signed          N != V
+greater than                    gt      A > B           signed          Z == 0 && N == V
+less than or equal              le      A <= B          signed          !(Z == 0 && N == V)
+
+minus, negative                 mi      A < B           -               N == 1
+plus or zero                    pl      A >= B          -               N == 0
+
+overflow set                    vs      -               -               V == 1
+overflow clear                  vc      -               -               V == 0
+
+always                          al      true            -               -
+always                          nv      true            -               -
