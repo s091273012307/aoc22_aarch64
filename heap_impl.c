@@ -15,7 +15,7 @@ typedef struct heap_struct {
     char data[8];
 } heap_struct;
 
-#define _chunk_size (sizeof(heap_struct)-8)
+#define _chunk_size (sizeof(heap_struct) - 8)
 
 uint64_t* _heap_location_ptr = 0;
 
@@ -71,7 +71,7 @@ void* _malloc(uint64_t requested_size) {
                                              0,
                                              0);
         heap_struct* init = (heap_struct*)_heap_location_ptr;
-        init->size = _heap_size;
+        init->size = _heap_size - _chunk_size;
         init->prev = (heap_struct*)_heap_location_ptr;
         init->next = (heap_struct*)_heap_location_ptr;
     }
@@ -108,13 +108,13 @@ void* _malloc(uint64_t requested_size) {
                     for (int i=0; i < requested_size - _chunk_size; i++) {
                         curr->data[i] = 0;
                     }
-                    return (void*)((uint64_t)curr + sizeof(heap_struct) - 8);
+                    return (void*)((uint64_t)curr + _chunk_size);
                 } else {
                     printf(" we can't subdivide this chunk, so we're gonna use all of it!\n");
                     curr->size += 1; // mark as in-use
                     // we don't have to change our previous or following heap structure
                     // pointers because we are consuming the whole chunk
-                    return (void*)((uint64_t)curr + sizeof(heap_struct) - 8);
+                    return (void*)((uint64_t)curr + _chunk_size);
                 }
             } else {
                 printf(" this chunk is not big enough for us! (size=0x%lx)\n", curr->size);
@@ -144,14 +144,15 @@ int main(int argc, char** argv) {
     printf("[+] Malloc @ 0x%lx\n", (uint64_t)my_ptrs[2]);
     // dump_heap();
 
-
     my_ptrs[3] = _malloc(0x1);
     printf("[+] Malloc @ 0x%lx\n", (uint64_t)my_ptrs[3]);
-    // dump_heap();
+    printf("before all the free's:\n");
+    dump_heap();
 
     for (int i=3; i >= 0; i--) {
         printf("[+] Freeing %d @ 0x%lx\n", i, (uint64_t)my_ptrs[i]);
         _free(my_ptrs[i]);
+        dump_heap();
     }
     printf("[i] heap state:\n");
     dump_heap();

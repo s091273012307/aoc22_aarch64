@@ -6,7 +6,7 @@ abi_test: abi_test.c
 heap_impl: heap_impl.c
 	gcc heap_impl.c -o heap_impl
 
-day_1: day_1.asm
+day_1: day_1.asm utils.asm
 	aarch64-linux-gnu-as day_1.asm -o day_1.o
 	aarch64-linux-gnu-ld day_1.o -o day_1
 
