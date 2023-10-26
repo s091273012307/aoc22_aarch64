@@ -1,19 +1,109 @@
 .text
 ####################  LIBRARY  ####################
-_print_hex:
-    # args: x0 (raw value to print)
-    # output: none
+# macros START
+// load a 64-bit immediate using MOV
+.macro movq Xn, imm
+    movz    \Xn,  \imm & 0xFFFF
+    movk    \Xn, (\imm >> 16) & 0xFFFF, lsl 16
+    movk    \Xn, (\imm >> 32) & 0xFFFF, lsl 32
+    movk    \Xn, (\imm >> 48) & 0xFFFF, lsl 48
+.endm
 
-    # we are getting a u64 in x0, so we need to print that value in hex via write
+// load a 32-bit immediate using MOV
+.macro movl Wn, imm
+    movz    \Wn,  \imm & 0xFFFF
+    movk    \Wn, (\imm >> 16) & 0xFFFF, lsl 16
+.endm
+# macros END
+_puts:
+    # args: x0 (string to print)
+    mov x2, 0
+    mov x1, x0
+    _str_len_loop:
+    ldrb w3, [x1]
+    add x2, x2, 1
+    add x1, x1, 1
+    cmp x3, 0
+    b.ne _str_len_loop
     mov x8, 0x40
-    ldr x1, =ascii_hex
-    mov x2, 1
+    mov x1, x0
+    # x2 already set to string length
     mov x0, 1
     svc 0
 
+    # newline
+    mov x8, 0x40
+    mov x0, 1
+    ldr x1, =_newline
+    mov x2, 1
+    svc 0
+    ret
+
+_print_hex:
+    # args: x0 (raw uint64_t value to print), x1 (0:no newline, 1: include newline)
+    # returns: none
+
+    # locals
+    #  u64: x1 (newline print)
+    #  u64: link register
+    #  u64: x0 copy
+    #  u64: index
+    sub sp, sp, 0x20
+    str x30, [sp, -0x10]
+    str x1, [sp, -0x18]
+    mov x1, 64
+    str x1, [sp]
+    str x0, [sp, -8]
+
+    # write out the 0x first
+    mov x0, 1
+    ldr x1, =_0x
+    mov x2, 2
+    mov x8, 0x40
+    svc 0
+
+    _print_hex_loop:
+        ldr x7, [sp]
+        sub x7, x7, 4
+        str x7, [sp]
+
+        ldr x1, [sp, -8]
+        lsr x1, x1, x7
+        and x2, x1, 0xf
+
+        ldr x1, =_ascii_hex
+        add x1, x1, x2
+
+        mov x8, 0x40
+        mov x0, 1
+        # x1 set already
+        mov x2, 1
+        svc 0
+
+        ldr x7, [sp]
+        cmp x7, 0
+        b.gt _print_hex_loop
+
+    ldr x1, [sp, -0x18]
+    cmp x1, 1
+    b.ne _no_newline_requested
+        # newline
+        mov x8, 0x40
+        mov x0, 1
+        ldr x1, =_newline
+        mov x2, 1
+        svc 0
+    _no_newline_requested:
+
+    ldr x30, [sp, -0x10]
+    add sp, sp, 0x20
+    ret
+
+
+
 _free:
     # args: x0 (size of object to allocate)
-    # output: x0 (0 if successful, -1 if an error occurs)
+    # returns: x0 (0 if successful, -1 if an error occurs)
 
     # uint64_t _free(void* object) {
     #     if (!_heap_location_ptr)
@@ -288,6 +378,29 @@ _malloc:
     add sp, sp, 0x8
     ret
 
+_open:
+    # input: x0 (char* filename), x1 (int flags), x2 (int mode), returns x0 set to fd on success, -1 on error
+    # 56      openat  man/ cs/        0x38    int dfd const char *filename    int flags       umode_t mode    -       -
+    mov x8, 0x38
+    svc 0
+    ret
+
+_read:
+    # inputs: x0 (fd), x1 (dest_buf), x2 (bytes to read), returns x0 set to # bytes read or -1 on error
+    # 63      read    man/ cs/        0x3f    unsigned int fd char *buf       size_t count    -       -       -
+    mov x8, 0x3f
+    svc 0
+    ret
+
+_close:
+    # input: x0 (int fd), returns x0 set to 0 on success or -1 on error
+    # 57      close   man/ cs/        0x39    unsigned int fd -       -       -       -       -
+    mov x8, 0x39
+    svc 0
+    ret
+
+
+
 # Stupid shit to remind you
 #  svc call numbers go in x8, args in x0,x1,x2,x3,etc
 #  X0 – X7      arguments and return value
@@ -314,21 +427,51 @@ _malloc:
 ####################  LIBRARY  ####################
 .data
 #################### CONSTANTS ####################
+# internal library constants
+_heap_size          = 0x100000
+_chunk_size = 0x18
+
+# memory flags
 _PROT_NONE  = 0
 _PROT_READ  = 1
 _PROT_WRITE = 2
 _PROT_EXEC  = 4
+
+# memory tpes
 _MAP_ANONYMOUS      = 0x20
 _MAP_ANON           = 0x20
 _MAP_FILE           = 0x0
 _MAP_FIXED          = 0x10
 _MAP_PRIVATE        = 0x02
 _MAP_SHARED         = 0x1
-_heap_size          = 0x100000
-_chunk_size = 0x18
+
+# file flags
+_O_RDONLY    = 0x0
+_O_WRONLY    = 0x1
+_O_RDWR      = 0x2
+
+# file modes
+_O_NONBLOCK      = 00004000
+_O_APPEND        = 00002000
+_O_CREAT         = 00000100
+_O_TRUNC         = 00001000
+_O_EXCL          = 0200
+# O_SHLOCK        atomically obtain a shared lock
+# O_EXLOCK        atomically obtain an exclusive lock
+_O_DIRECTORY     = 00200000
+_O_NOFOLLOW      = 00400000
+# O_SYMLINK       allow open of symlinks
+# O_EVTONLY       descriptor requested for event notifications only
+_O_CLOEXEC       = 02000000
+# O_NOFOLLOW_ANY  do not follow symlinks in the entire path.
 #################### CONSTANTS ####################
 #################### INTERNALS ####################
-ascii_hex: .ascii "0123456789abcdefx"
+.align 4
+_newline: .ascii "\n"
+.align 4
+_0x: .ascii "0x"
+.align 4
+_ascii_hex: .ascii "0123456789abcdefx"
 .align 4
 .global _heap_location_ptr
 _heap_location_ptr: .8byte 0x0000000000000000
