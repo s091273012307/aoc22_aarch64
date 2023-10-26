@@ -382,6 +382,10 @@ _open:
     # input: x0 (char* filename), x1 (int flags), x2 (int mode), returns x0 set to fd on success, -1 on error
     # 56      openat  man/ cs/        0x38    int dfd const char *filename    int flags       umode_t mode    -       -
     mov x8, 0x38
+    mov x3, x2
+    mov x2, x1
+    mov x1, x0
+    mov x0, -100
     svc 0
     ret
 
