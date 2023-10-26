@@ -147,12 +147,12 @@ int main(int argc, char** argv) {
     my_ptrs[3] = _malloc(0x1);
     printf("[+] Malloc @ 0x%lx\n", (uint64_t)my_ptrs[3]);
     printf("before all the free's:\n");
-    dump_heap();
+    // dump_heap();
 
     for (int i=3; i >= 0; i--) {
         printf("[+] Freeing %d @ 0x%lx\n", i, (uint64_t)my_ptrs[i]);
         _free(my_ptrs[i]);
-        dump_heap();
+        // dump_heap();
     }
     printf("[i] heap state:\n");
     dump_heap();
