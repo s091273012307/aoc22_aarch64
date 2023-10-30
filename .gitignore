@@ -1,4 +1,5 @@
 abi_test
 heap_impl
-day_1.o
+*.o
 day_1
+*.sym

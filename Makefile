@@ -14,4 +14,4 @@ day_1.sym: day_1
 	aarch64-linux-gnu-objcopy --only-keep-debug day_1 day_1.sym
 
 clean:
-	-rm -f abi_test heap_impl day_1.o day_1
+	-rm -f abi_test heap_impl day_1.o day_1 day_1.sym
