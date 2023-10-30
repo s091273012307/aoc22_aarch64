@@ -17,6 +17,7 @@
 # macros END
 _puts:
     # args: x0 (string to print)
+    # returns: none
     mov x2, 0
     mov x1, x0
     _str_len_loop:
@@ -44,16 +45,16 @@ _print_hex:
     # returns: none
 
     # locals
-    #  u64: x1 (newline print)
-    #  u64: link register
-    #  u64: x0 copy
-    #  u64: index
+    #     0 == u64: index
+    #     8 == u64: x0 copy
+    #  0x10 == u64: link register
+    #  0x18 == u64: x1 (newline print)
     sub sp, sp, 0x20
-    str x30, [sp, -0x10]
-    str x1, [sp, -0x18]
+    str x30, [sp, 0x10]
+    str x1, [sp, 0x18]
     mov x1, 64
     str x1, [sp]
-    str x0, [sp, -8]
+    str x0, [sp, 8]
 
     # write out the 0x first
     mov x0, 1
@@ -67,7 +68,7 @@ _print_hex:
         sub x7, x7, 4
         str x7, [sp]
 
-        ldr x1, [sp, -8]
+        ldr x1, [sp, 8]
         lsr x1, x1, x7
         and x2, x1, 0xf
 
@@ -84,7 +85,7 @@ _print_hex:
         cmp x7, 0
         b.gt _print_hex_loop
 
-    ldr x1, [sp, -0x18]
+    ldr x1, [sp, 0x18]
     cmp x1, 1
     b.ne _no_newline_requested
         # newline
@@ -95,11 +96,26 @@ _print_hex:
         svc 0
     _no_newline_requested:
 
-    ldr x30, [sp, -0x10]
+    ldr x30, [sp, 0x10]
     add sp, sp, 0x20
     ret
 
+_print_hex_n:
+    # args: x0 (value to print)
+    # returns: none
 
+    # locals
+    # 0 == saved x30
+
+    sub sp, sp, 8
+    str x30, [sp]
+    mov x1, 1
+    bl _print_hex
+    ldr x30, [sp]
+
+    # locals
+    add sp, sp, 8
+    ret
 
 _free:
     # args: x0 (size of object to allocate)
@@ -196,10 +212,10 @@ _free:
 
 _malloc:
     # args: x0 (size of object to allocate)
-    # output: x0 (pointer to object if allocation, otherwise -1 if error occurs)
+    # returns: x0 (pointer to object if allocation, otherwise -1 if error occurs)
 
-    ### local stack variables ###
-    # size = sp + 0x0
+    # locals
+    # 0 == size
     sub sp, sp, 0x8
 
     # if ((requested_size % 8) != 0)
@@ -374,12 +390,13 @@ _malloc:
         mov x0, -1
     _malloc_success:
 
-    ### local stack variables ###
+    # locals
     add sp, sp, 0x8
     ret
 
 _open:
-    # input: x0 (char* filename), x1 (int flags), x2 (int mode), returns x0 set to fd on success, -1 on error
+    # args: x0 (char* filename), x1 (int flags), x2 (int mode)
+    # returns: x0 set to fd on success, -1 on error
     # 56      openat  man/ cs/        0x38    int dfd const char *filename    int flags       umode_t mode    -       -
     mov x8, 0x38
     mov x3, x2
@@ -390,20 +407,201 @@ _open:
     ret
 
 _read:
-    # inputs: x0 (fd), x1 (dest_buf), x2 (bytes to read), returns x0 set to # bytes read or -1 on error
+    # args: x0 (fd), x1 (dest_buf), x2 (bytes to read)
+    # returns: x0 set to # bytes read or -1 on error
     # 63      read    man/ cs/        0x3f    unsigned int fd char *buf       size_t count    -       -       -
     mov x8, 0x3f
     svc 0
     ret
 
 _close:
-    # input: x0 (int fd), returns x0 set to 0 on success or -1 on error
+    # args: x0 (int fd)
+    # returns: x0 set to 0 on success or -1 on error
     # 57      close   man/ cs/        0x39    unsigned int fd -       -       -       -       -
     mov x8, 0x39
     svc 0
     ret
 
+_read_line_to_string:
+    # args: x0 (int fd)
+    # returns: x0 (heap allocated string that was read in)
 
+    # locals
+    #  0x00: fd
+    #  0x08: malloc'd ptr
+    #  0x10: amt_read / index
+    #  0x18: x30
+    sub sp, sp, 0x20
+    str x30, [sp, 0x18]
+    str x0, [sp]
+    mov x1, -1
+    str x1, [sp, 0x10]
+
+    mov x0, 0x400
+    bl _malloc
+    cmp x0, -1
+    b.eq _read_line_to_string_fail
+    str x0, [sp, 0x8]
+
+    _read_line_to_string_loop:
+        # read a byte
+        ldr x0, [sp]
+        ldr x1, [sp, 0x8]
+        ldr x2, [sp, 0x10]
+        add x2, x2, 1
+        str x2, [sp, 0x10]
+        add x1, x1, x2
+        mov x2, 1
+        bl _read
+        # add the byte to our string
+        cmp x0, 1
+        b.ne _read_line_to_string_fail
+        # check if it's a newline, if so we bail without including it in the string!
+        ldr x1, [sp, 0x8]
+        ldr x2, [sp, 0x10]
+        add x1, x1, x2
+        ldrb w0, [x1]
+        and x0, x0, 0xff
+        cmp x0, 0x0a
+        b.eq _read_line_to_string_success
+        cmp x2, 0x400
+        # if we have read over 0x400 bytes, we need to malloc more, but that's V2
+        b.ge _read_line_to_string_fail
+        b _read_line_to_string_loop
+        
+    _read_line_to_string_success:
+        ldr x0, [sp, 0x08]
+        ldr x1, [sp, 0x10]
+        add x2, x0, x1
+        mov x3, 0
+        strb w3, [x2]
+        b _read_line_to_string_ret
+        
+    _read_line_to_string_fail:
+        ldr x0, [sp, 0x08]
+        bl _free
+
+        mov x0, -1
+        ldr x1, [sp, 0x10]
+
+    _read_line_to_string_ret:
+    
+    # locals
+    ldr x30, [sp, 0x18]
+    add sp, sp, 0x20
+    ret
+
+_atoi:
+    # args: x0: pointer to string
+    # returns: x0: value as u64, x1: failure_flag
+
+    # locals
+    #  0 == index
+    #  8 == num_so_far
+    sub sp, sp, 0x10
+    mov x1, 0
+    str x1, [sp]
+    str x1, [sp, 8]
+
+    cmp x0, 0
+    b.eq _atoi_failure
+
+    
+    # check if begins with 0x, else use decimal
+    # 0x30 == 0
+    ldr x2, [sp]
+    ldrb w1, [x0, x2]
+    cmp x1, 0x30
+    b.ne _atoi_parse_normal_number
+    ldr x2, [sp]
+    add x2, x2, 1
+    str x2, [sp]
+    # 0x78 == x
+    ldr x2, [sp]
+    ldrb w1, [x0, x2]
+    cmp x1, 0x78
+    b.ne _atoi_parse_normal_number
+    ldr x2, [sp]
+    add x2, x2, 1
+    str x2, [sp]
+    # we are parsing a hex number
+
+    _atoi_parse_hex_loop:
+        ldr x2, [sp, 8]
+        ldr x1, [sp]
+        ldrb w3, [x0, x1]
+        # we read in a byte, if it's a non-number, we are done
+        # 0x30 - 0x39 | 0x61 - 0x66 (inclusive)
+        cmp x3, 0x30
+        b.lt _atoi_parse_hex_loop_NAN
+        cmp x3, 0x39
+        b.le _atoi_parse_hex_loop_OK_n
+        cmp x3, 0x61
+        b.le _atoi_parse_hex_loop_NAN
+        cmp x3, 0x66
+        b.gt _atoi_parse_hex_loop_NAN
+        b _atoi_parse_hex_loop_OK_x
+
+        _atoi_parse_hex_loop_OK_n:
+            sub x3, x3, 0x30
+            b _atoi_parse_hex_loop_OK
+
+        _atoi_parse_hex_loop_OK_x:
+            sub x3, x3, 0x60
+            b _atoi_parse_hex_loop_OK
+
+        _atoi_parse_hex_loop_OK:
+            lsl x3, x3, 8
+            add x3, x3, x2
+            str x3, [sp, 8]
+        b _atoi_parse_hex_loop
+    
+    _atoi_parse_hex_loop_NAN:
+        mov x1, 0
+        ldr x0, [sp, 8]
+        b _atoi_success
+
+
+
+    _atoi_parse_normal_number:
+    # we are parsing a decimal number
+        # x0 == ptr to string
+        #  0 == index
+        #  8 == num_so_far
+        mov x1, -1
+        str x1, [sp]
+
+        _atoi_parse_number_loop:
+            ldr x2, [sp, 8]
+            ldr x1, [sp]
+            add x1, x1, 1
+            str x1, [sp]
+            ldrb w3, [x0, x1]
+
+            cmp x3, 0x30
+            b.lt _atoi_parse_number_loop_NAN
+            cmp x3, 0x39
+            b.gt _atoi_parse_number_loop_NAN
+            sub x3, x3, 0x30
+
+            mov x4, 0xa
+            madd x5, x4, x2, x3
+            str x5, [sp, 8]
+            b _atoi_parse_number_loop
+
+    _atoi_parse_number_loop_NAN:
+        mov x1, 0
+        ldr x0, [sp, 8]
+        b _atoi_success
+
+    _atoi_failure:
+        mov x0, 0
+        mov x1, 1
+    _atoi_success:
+
+        # locals
+        add sp, sp, 0x10
+        ret
 
 # Stupid shit to remind you
 #  svc call numbers go in x8, args in x0,x1,x2,x3,etc
@@ -432,7 +630,7 @@ _close:
 .data
 #################### CONSTANTS ####################
 # internal library constants
-_heap_size          = 0x100000
+_heap_size          = 0x1000000
 _chunk_size = 0x18
 
 # memory flags
