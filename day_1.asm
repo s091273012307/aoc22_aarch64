@@ -38,7 +38,7 @@ _start:
     file_read_loop:
         mov x0, 0
         str x0, [sp, 0x20]
-        
+
         mov x0, x20
         bl _read_line_to_string
         cmp x0, -1
@@ -182,6 +182,9 @@ _start:
     ldr x0, [sp, 0x10]
     bl _print_hex_n
 
+    ldr x0, [sp, 0x10]
+    bl _print_dec_n
+
     ldr x0, =elf2_msg
     bl _puts
 
@@ -202,7 +205,10 @@ _start:
     ldr x2, [sp, 0x30]
     add x0, x0, x1
     add x0, x0, x2
+    str x0, [sp]
     bl _print_hex_n
+    ldr x0, [sp]
+    bl _print_dec_n
 
     b b_over_fail
     fail:

@@ -100,6 +100,70 @@ _print_hex:
     add sp, sp, 0x20
     ret
 
+_print_dec:
+    # args: x0 (raw uint64_t value to print), x1 (0:no newline, 1: include newline)
+    # returns: none
+
+
+    # locals
+    #     0 == index
+    #     8 == link register
+    #  0x10 == newline flag (x1)
+    #  0x18 == string_ptr
+    #  0x20 == x0 backup
+    sub sp, sp, 0x28
+    str x30, [sp, 8]
+    str x1, [sp, 0x10]
+    str x0, [sp, 0x20]
+
+    # unsigned(18446744073709551615), 0x14 bytes + 1 null byte
+    # signed(9223372036854775807 to -9223372036854775808), 0x14 bytes + 1 null byte (version 2)
+    mov x0, 0x15
+    bl _malloc
+    # assume this works
+    str x0, [sp, 0x18]
+    
+    ldr x1, [sp, 0x20]
+    mov x2, 1
+    mov x3, 0xa
+    mov x4, 0
+    _print_dec_loop:
+        cmp x2, x1
+        b.gt _print_dec_loop_done
+        udiv x5, x1, x2
+        
+        get_under_10:
+            cmp x3, x5
+            b.gt no_need_to_truncate
+            sub x5, x5, x3
+            b get_under_10
+        no_need_to_truncate:
+        # figure out the next character to write
+        ldr x0, [sp, 0x18]
+        add x6, x0, 0x14
+        sub x6, x6, x4
+
+        # convert to ascii
+        add x5, x5, 0x30
+        strb w5, [x6]
+        add x4, x4, 1
+        mul x2, x2, x3
+        b _print_dec_loop
+    _print_dec_loop_done:
+
+    ldr x0, [sp, 0x18]
+    add x0, x0, 0x15
+    sub x0, x0, x4
+    ldr x1, [sp, 0x10]
+    bl _puts
+
+    ldr x0, [sp, 0x18]
+    bl _free
+
+    ldr x30, [sp, 8]
+    add sp, sp, 0x28
+    ret
+
 _print_hex_n:
     # args: x0 (value to print)
     # returns: none
@@ -111,6 +175,23 @@ _print_hex_n:
     str x30, [sp]
     mov x1, 1
     bl _print_hex
+    ldr x30, [sp]
+
+    # locals
+    add sp, sp, 8
+    ret
+
+_print_dec_n:
+    # args: x0 (value to print)
+    # returns: none
+
+    # locals
+    # 0 == saved x30
+
+    sub sp, sp, 8
+    str x30, [sp]
+    mov x1, 1
+    bl _print_dec
     ldr x30, [sp]
 
     # locals
