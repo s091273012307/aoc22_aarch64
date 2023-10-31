@@ -1,6 +1,8 @@
-Implementing aoc 2022 in aarch64 asm:
+# Implementing aoc 2022 in aarch64 asm:
 
 - [X] Day 1: https://adventofcode.com/2022/day/1
+
+# TBD
 - [ ] Day 2:
 - [ ] Day 3:
 - [ ] Day 4:
