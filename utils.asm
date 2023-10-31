@@ -1,5 +1,5 @@
+####################  LIBRARY START  ####################
 .text
-####################  LIBRARY  ####################
 # macros START
 // load a 64-bit immediate using MOV
 .macro movq Xn, imm
@@ -15,6 +15,8 @@
     movk    \Wn, (\imm >> 16) & 0xFFFF, lsl 16
 .endm
 # macros END
+
+# functions START
 _puts:
     # args: x0 (string to print)
     # returns: none
@@ -104,7 +106,6 @@ _print_dec:
     # args: x0 (raw uint64_t value to print), x1 (0:no newline, 1: include newline)
     # returns: none
 
-
     # locals
     #     0 == index
     #     8 == link register
@@ -170,7 +171,6 @@ _print_hex_n:
 
     # locals
     # 0 == saved x30
-
     sub sp, sp, 8
     str x30, [sp]
     mov x1, 1
@@ -187,7 +187,6 @@ _print_dec_n:
 
     # locals
     # 0 == saved x30
-
     sub sp, sp, 8
     str x30, [sp]
     mov x1, 1
@@ -478,6 +477,7 @@ _malloc:
 _open:
     # args: x0 (char* filename), x1 (int flags), x2 (int mode)
     # returns: x0 set to fd on success, -1 on error
+
     # 56      openat  man/ cs/        0x38    int dfd const char *filename    int flags       umode_t mode    -       -
     mov x8, 0x38
     mov x3, x2
@@ -490,6 +490,7 @@ _open:
 _read:
     # args: x0 (fd), x1 (dest_buf), x2 (bytes to read)
     # returns: x0 set to # bytes read or -1 on error
+
     # 63      read    man/ cs/        0x3f    unsigned int fd char *buf       size_t count    -       -       -
     mov x8, 0x3f
     svc 0
@@ -498,6 +499,7 @@ _read:
 _close:
     # args: x0 (int fd)
     # returns: x0 set to 0 on success or -1 on error
+
     # 57      close   man/ cs/        0x39    unsigned int fd -       -       -       -       -
     mov x8, 0x39
     svc 0
@@ -587,7 +589,6 @@ _atoi:
     cmp x0, 0
     b.eq _atoi_failure
 
-    
     # check if begins with 0x, else use decimal
     # 0x30 == 0
     ldr x2, [sp]
@@ -641,8 +642,6 @@ _atoi:
         mov x1, 0
         ldr x0, [sp, 8]
         b _atoi_success
-
-
 
     _atoi_parse_normal_number:
     # we are parsing a decimal number
@@ -707,9 +706,10 @@ _atoi:
 # 
 # x29 can be used as a frame pointer and x30 is the link register. The callee should save
 # x30 if it intends to call a subroutine.
-####################  LIBRARY  ####################
+# functions END
+
 .data
-#################### CONSTANTS ####################
+#################### CONSTANTS START ####################
 # internal library constants
 _heap_size          = 0x1000000
 _chunk_size = 0x18
@@ -747,8 +747,8 @@ _O_NOFOLLOW      = 00400000
 # O_EVTONLY       descriptor requested for event notifications only
 _O_CLOEXEC       = 02000000
 # O_NOFOLLOW_ANY  do not follow symlinks in the entire path.
-#################### CONSTANTS ####################
-#################### INTERNALS ####################
+#################### CONSTANTS END ####################
+#################### INTERNALS START ####################
 .align 4
 _newline: .ascii "\n"
 .align 4
@@ -758,4 +758,5 @@ _ascii_hex: .ascii "0123456789abcdefx"
 .align 4
 .global _heap_location_ptr
 _heap_location_ptr: .8byte 0x0000000000000000
-#################### INTERNALS ####################
+#################### INTERNALS END ####################
+#################### LIBRARY END ####################
